@@ -1,9 +1,12 @@
+# 12 Month Euribor submission data vs. 12 Month EONIA futures
+
 library(XLConnect)
 library(dplyr)
 library(stringr)
 library(magrittr)
 library(reshape2)
 library(ggplot2)
+library(Quandl)
 
 setwd("~/Dropbox/Taylor/Repositories/euribor-submissions/")
 
@@ -50,7 +53,28 @@ data.final <- data.summarised %>% melt(id.vars = "Date") %>%
                                             dcast(Date + tenor ~ variable.id) %>%
                                             filter(Date %in% seq.Date(from=as.Date("2005-01-01"), to=as.Date("2011-12-31"), by = 1), min > 0.001, min < 1, max < 0.44, max > 0)
 
-# Plot the submission history
+# Plot the submission history for Euribor
+
 pdf(file="euribor-submissions.pdf")                                            
 ggplot(data = data.final, aes(x = Date, y = avg, ymin = min, ymax = max)) + geom_line() + geom_ribbon(alpha = 0.5) + scale_y_continuous(limits = c(0,0.055), labels = percent_format()) + facet_grid(tenor ~ .) + labs(title = "12M Euribor Submissions by Panel Banks", y = "")
 dev.off()
+
+# Get Quandl data on EONIA Futures and merge it with the Euribor data.
+
+eonia.data <- Quandl("BUNDESBANK/BBK01_ST0434") %>% 
+              mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+              mutate(eonia = Value/100) %>%
+              select(-Value)
+
+data.final.merged <- merge(data.final, eonia.data, id.vars = "Date") %>%
+                    rename(euribor = avg) %>%
+                    melt(measure.vars = c("euribor", "eonia"))
+
+# Plot Euribor submissions with Eonia Futures
+pdf(file="euribor-submissions-with-eonia.pdf")                                            
+cols = c("Panel Submissions for 12 Month Euribor Rate"="#f04546","12 Month EONIA Futures Rate"="#3591d1")
+ggplot(data = data.final.merged, aes(x = Date, y = value)) + geom_line(data = subset(data.final.merged, variable == "euribor"), aes(x = Date, y = value, colour = "Panel Submissions for 12 Month Euribor Rate"), size = 0.5) + geom_line(data = subset(data.final.merged, variable == "eonia"), aes(x = Date, y = value, colour = "12 Month EONIA Futures Rate"), size = 0.3) + geom_ribbon(data = data.final.merged, aes(x = Date, ymin = min, ymax = max, fill = "Panel Submissions for 12 Month Euribor Rate"), alpha = 0.5) +  scale_y_continuous(labels = percent_format()) + scale_colour_manual(name="",values=cols) + scale_fill_manual(name = "a", values = cols, guide = "none") + theme(legend.position = "bottom") + labs(y = "Interest Rate") 
+dev.off()
+
+
+
