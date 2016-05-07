@@ -39,7 +39,7 @@ data.2 <- lapply(data.1, FUN = function(x) select(x, one_of(c("Bank","X1W","X2W"
 data.flat <- do.call("rbind", data.2)
 
 # Group the data by date, and then summarise for each date and tenor the standard deviation
-# of submissions (for 1M, 3M, 6M)
+# of submissions (in this case we only examine the 12 Month Euribor submissions)
 data.summarised <- data.flat %>% group_by(Date) %>% summarise(X12.avg = mean(as.numeric(X12M), na.rm = TRUE)/100,
                                                               X12.max = quantile(as.numeric(X12M), probs = 0.99, na.rm = TRUE)/100,
                                                               X12.min = quantile(as.numeric(X12M), probs = 0.01, na.rm = TRUE)/100,
