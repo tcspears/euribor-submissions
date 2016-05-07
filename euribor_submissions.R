@@ -42,6 +42,7 @@ data.summarised <- data.flat %>% group_by(Date) %>% summarise(X12.avg = mean(as.
                                                               X12.min = quantile(as.numeric(X12M), probs = 0.01, na.rm = TRUE)/100,
                                                               X12.std = sd(as.numeric(X12M), na.rm = TRUE)/100)
 
+# Make the dataset ggplot-able, and drop outliers
 data.final <- data.summarised %>% melt(id.vars = "Date") %>% 
                                             mutate(variable.id = substr(variable, 5, 7)) %>% 
                                             mutate(tenor = factor(substr(variable, 2, 3), levels = c("12"), labels = c("12 Month Euribor Rate"))) %>%
@@ -49,6 +50,7 @@ data.final <- data.summarised %>% melt(id.vars = "Date") %>%
                                             dcast(Date + tenor ~ variable.id) %>%
                                             filter(Date %in% seq.Date(from=as.Date("2005-01-01"), to=as.Date("2011-12-31"), by = 1), min > 0.001, min < 1, max < 0.44, max > 0)
 
+# Plot the submission history
 pdf(file="euribor-submissions.pdf")                                            
 ggplot(data = data.final, aes(x = Date, y = avg, ymin = min, ymax = max)) + geom_line() + geom_ribbon(alpha = 0.5) + scale_y_continuous(limits = c(0,0.055), labels = percent_format()) + facet_grid(tenor ~ .) + labs(title = "12M Euribor Submissions by Panel Banks", y = "")
 dev.off()
