@@ -17,6 +17,9 @@ replace_columns <- function(euribor.df){
   }
 }
 
+# Function to strip punctuation and whitespace from sheet names, as well as add leading zeroes
+# for 3 digit sheet names.
+
 clean_worksheet_names <- function(worksheet.names){
   out <- gsub("[[:punct:]]", "", worksheet.names)
   out.1 <- gsub(" ", "", out, fixed = TRUE)
@@ -25,9 +28,10 @@ clean_worksheet_names <- function(worksheet.names){
   return(out.2)
 }
 
+# Load workbook and read sheets into a list. 
+
 extract_euribor_worksheet <- function(file.name){
-    
-  # Load workbook and read sheets into a list. Standardise column names.
+  # Read worksheet into a list and set file name and year attributes.  
   wb <- XLConnect::loadWorkbook(file.name)
   lst <- XLConnect::readWorksheet(wb, sheet = getSheets(wb))
   attributes(lst)$file <- file.name
@@ -37,6 +41,7 @@ extract_euribor_worksheet <- function(file.name){
   return(lst)
 }
 
+# Standardise column names and create date variable from sheet names and year attribute.
 clean_euribor_worksheet <- function(lst){
   lst.mod <- lapply(lst, FUN=function(x) names(x) = replace_columns(x))
   
@@ -62,7 +67,7 @@ download_euribor_files <- function(urls, directory.name){
   }
 }
 
-# Read a bunch of Euribor data files in a directory
+# Calls extract_euribor_worksheet for .xlsx and .xls files in a specific directory.
 read_euribor_files <- function(directory.name){
   # Grab contents of directory; save to vector
   directory.contents <- dir(directory.name)
@@ -74,19 +79,22 @@ read_euribor_files <- function(directory.name){
   return(out)
 }
 
-# Clean Euribor files, i.e. standardise columns
+# Calls clean_euribor_worksheet for a list of worksheets (in data.frame format)
 clean_euribor_files <- function(lst){
   out <- lapply(lst, FUN = function(x) clean_euribor_worksheet(x))
   return(out)
 }
 
-# Checks and documents sheets that don't follow the correct format.
+# Checks and documents sheets that don't follow the correct format to be deleted manually.
 check_bad_sheets <- function(data.lst){
   out <- data.frame()
   k <- 1
   for (i in seq(1,length(data.lst))){
     for(j in seq(1,length(data.lst[[i]]))){
+      # If the sheet doesn't have either 9 or 16 variables, then it is malformatted and should be
+      # deleted later (or fixed)
       if(dim(data.lst[[i]][[j]])[2] != 9 && dim(data.lst[[i]][[j]])[2] != 16){
+        # Record essential sheet information so that it can be identified.
         out[k,1] <- attributes(data[[i]])$names[j]
         out[k,2] <- attributes(data[[i]])$year
         out[k,3] <- attributes(data[[i]])$file
