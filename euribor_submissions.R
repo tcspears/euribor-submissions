@@ -7,8 +7,12 @@ library(magrittr)
 library(reshape2)
 library(ggplot2)
 library(Quandl)
+library(scales)
+
+Quandl.auth("_1sveTL3kuc5TWHx8Urv")
 
 setwd("~/Dropbox/Taylor/Repositories/euribor-submissions/")
+source("euribor_submissions_fcns.R")
 
 # Read in CSV of URLs
 urls <- read.csv("data_urls.csv", stringsAsFactors = FALSE)
@@ -16,8 +20,9 @@ urls <- read.csv("data_urls.csv", stringsAsFactors = FALSE)
 # Set data directory
 directory <- "~/Dropbox/Taylor/Repositories/euribor-submissions/data/"
 
-# Download data files from URLs to directory
-download_euribor_files(urls[,1], directory.name = directory)
+# Download data files from URLs to directory (uncomment if they haven't been downloaded already)
+
+#download_euribor_files(urls[,1], directory.name = directory)
 
 # Read directory data into a list
 data <- read_euribor_files(directory)
@@ -40,10 +45,11 @@ data.flat <- do.call("rbind", data.2)
 
 # Group the data by date, and then summarise for each date and tenor the standard deviation
 # of submissions (in this case we only examine the 12 Month Euribor submissions)
-data.summarised <- data.flat %>% group_by(Date) %>% summarise(X12.avg = mean(as.numeric(X12M), na.rm = TRUE)/100,
+# When calculating mean, trim Euribor submissions by 15% in accordance with Euribor definition.
+
+data.summarised <- data.flat %>% group_by(Date) %>% summarise(X12.avg = mean(as.numeric(X12M), trim = 0.15, na.rm = TRUE)/100,
                                                               X12.max = quantile(as.numeric(X12M), probs = 0.99, na.rm = TRUE)/100,
-                                                              X12.min = quantile(as.numeric(X12M), probs = 0.01, na.rm = TRUE)/100,
-                                                              X12.std = sd(as.numeric(X12M), na.rm = TRUE)/100)
+                                                              X12.min = quantile(as.numeric(X12M), probs = 0.01, na.rm = TRUE)/100)
 
 # Make the dataset ggplot-able, and drop outliers
 data.final <- data.summarised %>% melt(id.vars = "Date") %>% 
@@ -51,13 +57,8 @@ data.final <- data.summarised %>% melt(id.vars = "Date") %>%
                                             mutate(tenor = factor(substr(variable, 2, 3), levels = c("12"), labels = c("12 Month Euribor Rate"))) %>%
                                             select(-variable) %>%
                                             dcast(Date + tenor ~ variable.id) %>%
-                                            filter(Date %in% seq.Date(from=as.Date("2005-01-01"), to=as.Date("2011-12-31"), by = 1), min > 0.001, min < 1, max < 0.44, max > 0)
+                                            filter(Date %in% seq.Date(from=as.Date("2005-01-01"), to=as.Date("2016-12-31"), by = 1), min > 0.001, min < 1, max < 0.44, max > 0)
 
-# Plot the submission history for Euribor
-
-pdf(file="euribor-submissions.pdf")                                            
-ggplot(data = data.final, aes(x = Date, y = avg, ymin = min, ymax = max)) + geom_line() + geom_ribbon(alpha = 0.5) + scale_y_continuous(limits = c(0,0.055), labels = percent_format()) + facet_grid(tenor ~ .) + labs(title = "12M Euribor Submissions by Panel Banks", y = "")
-dev.off()
 
 # Get Quandl data on EONIA Futures and merge it with the Euribor data.
 
@@ -72,9 +73,39 @@ data.final.merged <- merge(data.final, eonia.data, id.vars = "Date") %>%
 
 # Plot Euribor submissions with Eonia Futures
 pdf(file="euribor-submissions-with-eonia.pdf")                                            
-cols = c("Panel Submissions for 12 Month Euribor Rate"="#f04546","12 Month EONIA Futures Rate"="#3591d1")
-ggplot(data = data.final.merged, aes(x = Date, y = value)) + geom_line(data = subset(data.final.merged, variable == "euribor"), aes(x = Date, y = value, colour = "Panel Submissions for 12 Month Euribor Rate"), size = 0.5) + geom_line(data = subset(data.final.merged, variable == "eonia"), aes(x = Date, y = value, colour = "12 Month EONIA Futures Rate"), size = 0.3) + geom_ribbon(data = data.final.merged, aes(x = Date, ymin = min, ymax = max, fill = "Panel Submissions for 12 Month Euribor Rate"), alpha = 0.5) +  scale_y_continuous(labels = percent_format()) + scale_colour_manual(name="",values=cols) + scale_fill_manual(name = "a", values = cols, guide = "none") + theme(legend.position = "bottom") + labs(y = "Interest Rate") 
+cols = c("12 Month Euribor Rate and Spread of Submissions"="#f04546","12 Month EONIA Futures Rate"="#3591d1")
+ggplot(data = data.final.merged, aes(x = Date, y = value)) + geom_line(data = subset(data.final.merged, variable == "euribor"), aes(x = Date, y = value, colour = "12 Month Euribor Rate and Spread of Submissions"), size = 0.5) + geom_line(data = subset(data.final.merged, variable == "eonia"), aes(x = Date, y = value, colour = "12 Month EONIA Futures Rate"), size = 0.3) + geom_ribbon(data = data.final.merged, aes(x = Date, ymin = min, ymax = max, fill = "12 Month Euribor Rate and Spread of Submissions"), alpha = 0.5) +  scale_y_continuous(labels = percent_format()) + scale_colour_manual(name="",values=cols) + scale_fill_manual(name = "a", values = cols, guide = "none") + theme(legend.position = "bottom") + labs(y = "Interest Rate") 
 dev.off()
 
+# Euribor rates of different tenors
 
+data.summarised.all <- data.flat %>% 
+                      group_by(Date) %>% 
+                      summarise(X12.avg = mean(as.numeric(X12M), na.rm = TRUE)/100,
+                                X12.max = quantile(as.numeric(X12M), probs = 0.99, na.rm = TRUE)/100,
+                                X12.min = quantile(as.numeric(X12M), probs = 0.01, na.rm = TRUE)/100,
+                                X9M.avg = mean(as.numeric(X9M), na.rm = TRUE)/100,
+                                X9M.max = quantile(as.numeric(X9M), probs = 0.99, na.rm = TRUE)/100,
+                                X9M.min = quantile(as.numeric(X9M), probs = 0.01, na.rm = TRUE)/100,
+                                X6M.avg = mean(as.numeric(X6M), na.rm = TRUE)/100,
+                                X6M.max = quantile(as.numeric(X6M), probs = 0.99, na.rm = TRUE)/100,
+                                X6M.min = quantile(as.numeric(X6M), probs = 0.01, na.rm = TRUE)/100,
+                                X3M.avg = mean(as.numeric(X3M), na.rm = TRUE)/100,
+                                X3M.max = quantile(as.numeric(X3M), probs = 0.99, na.rm = TRUE)/100,
+                                X3M.min = quantile(as.numeric(X3M), probs = 0.01, na.rm = TRUE)/100,
+                                X1M.avg = mean(as.numeric(X1M), na.rm = TRUE)/100,
+                                X1M.max = quantile(as.numeric(X1M), probs = 0.99, na.rm = TRUE)/100,
+                                X1M.min = quantile(as.numeric(X1M), probs = 0.01, na.rm = TRUE)/100,
+                                X1W.avg = mean(as.numeric(X1W), na.rm = TRUE)/100,
+                                X1W.max = quantile(as.numeric(X1W), probs = 0.99, na.rm = TRUE)/100,
+                                X1W.min = quantile(as.numeric(X1W), probs = 0.01, na.rm = TRUE)/100)
 
+data.final.all <- data.summarised.all %>% 
+                  melt(id.vars = "Date") %>% 
+                  mutate(variable.id = substr(variable, 5, 7)) %>% 
+                  mutate(tenor = factor(substr(variable, 2, 3), levels = c("1W","1M","3M","6M","9M","12"), labels = c("1W","1M","3M","6M","9M","12M"))) %>%
+                  select(-variable) %>%
+                  dcast(Date + tenor ~ variable.id) %>%
+                  filter(Date %in% seq.Date(from=as.Date("2004-01-01"), to=as.Date("2015-12-31"), by = 1), min > 0.001, min < 1, max < 0.44, max > 0)
+
+ggplot(data = data.final.all, aes(x = Date, y = avg, ymin = min, ymax = max, fill = tenor)) + geom_line() + geom_ribbon(alpha = 0.5) + scale_y_continuous(limits = c(0,0.055), labels = percent_format()) + labs(title = "12M Euribor Submissions by Panel Banks", y = "")
