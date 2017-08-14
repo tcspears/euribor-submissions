@@ -109,3 +109,34 @@ data.final.all <- data.summarised.all %>%
                   filter(Date %in% seq.Date(from=as.Date("2004-01-01"), to=as.Date("2015-12-31"), by = 1), min > 0.001, min < 1, max < 0.44, max > 0)
 
 ggplot(data = data.final.all, aes(x = Date, y = avg, ymin = min, ymax = max, fill = tenor)) + geom_line() + geom_ribbon(alpha = 0.5) + scale_y_continuous(limits = c(0,0.055), labels = percent_format()) + labs(title = "12M Euribor Submissions by Panel Banks", y = "")
+
+# Ratings Plot
+
+# Read in ratings data
+ratings <- read.csv("ratingsEuribor.csv", stringsAsFactors = FALSE) %>%
+  dplyr::mutate(Date = as.Date(Date)) %>%
+  dplyr::mutate(Date = factor(Date)) %>%
+  dplyr::mutate(Rating = factor(Rating, levels=rev(c("Aaa","Aa1","Aa2","Aa3","A1","A2","A3","Baa1","Baa2","Baa3","Ba1","Ba2","Ba3","B1","B2","B3","Caa1","Caa2","Caa3","Ca","C")))) %>%
+  dplyr::mutate(Name = factor(Name)) %>%
+  dplyr::mutate(Rating.Type = factor(Rating.Type))
+
+# Build summary table
+
+equals_zero <- function(x) ifelse(x == 0, TRUE, FALSE)
+
+ratingsSummary <- table(dplyr::select(ratings, Date, Rating)) %>% 
+  as.data.frame(.) %>%
+  dplyr::mutate(Freq = ifelse(equals_zero(Freq), NA, Freq))
+
+# Build ratings plot
+
+ratingsPlot <- ggplot(ratingsSummary, aes(Date, Rating)) +
+  geom_tile(aes(fill = Freq), colour = "black") +
+  scale_fill_gradient(na.value="white",low = "slategray1", high = "slategray") + 
+  ggtitle("Moody's Ratings for Euribor Panel Banks")
+
+ggsave(plot = ratingsPlot,
+       file = "ratingsPlot.pdf",
+       device = "pdf")
+
+
